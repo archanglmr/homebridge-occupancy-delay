@@ -34,7 +34,7 @@ module.exports = function(homebridge) {
 
 
 
-  homebridge.registerAccessory("homebridge-occupancy-timer", "OccupancyTimer", OccupancyTimer);
+  homebridge.registerAccessory("homebridge-occupancy-delay", "OccupancyDelay", OccupancyDelay);
 };
 
 
@@ -63,10 +63,10 @@ module.exports = function(homebridge) {
  * What can I do with this plugin?
  * @todo: Addd use case and instructions here.
  */
-class OccupancyTimer {
+class OccupancyDelay {
   constructor(log, config) {
     this.log = log;
-    this.name = config.name || "OccupancyTimer";
+    this.name = config.name || "OccupancyDelay";
     this.slaveCount = Math.max(1, (config.slaveCount || 1));
     this.delay = Math.min(3600, Math.max(0, parseInt(config.delay, 10) || 0));
 
