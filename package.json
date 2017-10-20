@@ -1,8 +1,9 @@
 {
   "name": "homebridge-occupancy-timer",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Occupancy sensor linked to one or more switches with a built-in delay not-unoccupied delay for Homebridge: https://github.com/nfarina/homebridge",
   "main": "index.js",
+  "license": "GPL-3.0",
   "keywords": [
     "homebridge-plugin",
     "occupancy",

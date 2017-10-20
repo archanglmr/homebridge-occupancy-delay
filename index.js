@@ -164,13 +164,6 @@ class OccupancyTimer {
 
         /* callback for when all the switches values have been returend */
         return_occupancy = function(occupied) {
-          //if (occupied) {
-          //  this.setOccupancyDetected();
-          //} else {
-          //  this.setOccupancyNotDetected();
-          //}
-
-          this.log('Last occupied state: ' + this._last_occupied_state);
           if (occupied) {
             if (this._last_occupied_state === !!occupied) {
               this.stop();
@@ -201,7 +194,7 @@ class OccupancyTimer {
         }.bind(this);
 
 
-    /* look at all the slave switches "on" characterisitc and return to callback */
+    /* look at all the slave switches "on" characteristic and return to callback */
     for (let i = 0; i < this.slaveCount; i += 1) {
       this.switchServices[i]
           .getCharacteristic(Characteristic.On)
@@ -222,7 +215,7 @@ class OccupancyTimer {
   getServices() {
     var informationService = new Service.AccessoryInformation()
         .setCharacteristic(Characteristic.Manufacturer, 'github.com/archanglmr')
-        .setCharacteristic(Characteristic.Model, '0.1')
+        .setCharacteristic(Characteristic.Model, '0.2')
         .setCharacteristic(Characteristic.SerialNumber, '20171019');
 
 
