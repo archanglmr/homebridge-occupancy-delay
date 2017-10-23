@@ -14,7 +14,6 @@ module.exports = function(homebridge) {
   /**
    * Characteristic "Time Remaining"
    */
-
   Characteristic.TimeRemaining = function() {
     Characteristic.call(this, 'Time Remaining', '1000006D-0000-1000-8000-0026BB765291');
     this.setProps({
@@ -27,10 +26,27 @@ module.exports = function(homebridge) {
     });
     this.value = this.getDefaultValue();
   };
-
   inherits(Characteristic.TimeRemaining, Characteristic);
-
   Characteristic.TimeRemaining.UUID = '1000006D-0000-1000-8000-0026BB765291';
+
+
+  /**
+   * Characteristic "Timeout Delay"
+   */
+  Characteristic.TimeoutDelay = function() {
+    Characteristic.call(this, 'Timeout Delay', '1100006D-0000-1000-8000-0026BB765291');
+    this.setProps({
+      format: Characteristic.Formats.UINT64,
+      unit: Characteristic.Units.SECONDS,
+      maxValue: 3600,
+      minValue: 0,
+      minStep: 30,
+      perms: [Characteristic.Perms.READ, Characteristic.Perms.WRITE, Characteristic.Perms.NOTIFY]
+    });
+    this.value = this.getDefaultValue();
+  };
+  inherits(Characteristic.TimeoutDelay, Characteristic);
+  Characteristic.TimeoutDelay.UUID = '1100006D-0000-1000-8000-0026BB765291';
 
 
 
@@ -73,12 +89,21 @@ class OccupancyDelay {
 
     this._timer = null;
     this._timer_started = null;
+    this._timer_delay = 0;
     this._interval = null;
     this._interval_last_value = 0;
     this._last_occupied_state = false;
 
     this.switchServices = [];
     this.occupancyService = new Service.OccupancySensor(this.name);
+
+    this.occupancyService.addCharacteristic(Characteristic.TimeoutDelay);
+    this.occupancyService.setCharacteristic(Characteristic.TimeoutDelay, this.delay);
+    this.occupancyService.getCharacteristic(Characteristic.TimeoutDelay).on('change', (event) => {
+      this.log('Setting delay to:', event.newValue);
+      this.delay = event.newValue;
+    });
+
     this.occupancyService.addCharacteristic(Characteristic.TimeRemaining);
     this.occupancyService.setCharacteristic(Characteristic.TimeRemaining, 0);
 
@@ -103,12 +128,13 @@ class OccupancyDelay {
   start() {
     this.stop();
     this._timer_started = (new Date()).getTime();
-    this.log('Timer started');
+    this.log('Timer started:', this.delay);
     if (this.delay) {
       this._timer = setTimeout(this.setOccupancyNotDetected.bind(this), (this.delay * 1000));
+      this._timer_delay = this.delay;
       this._interval = setInterval(() => {
         var elapsed = ((new Date()).getTime() - this._timer_started) / 1000,
-            newValue = Math.round(this.delay - elapsed);
+            newValue = Math.round(this._timer_delay - elapsed);
 
         if (newValue !== this._interval_last_value) {
           this.occupancyService.setCharacteristic(Characteristic.TimeRemaining, newValue);
@@ -131,6 +157,7 @@ class OccupancyDelay {
       clearInterval(this._interval);
       this._timer = null;
       this._timer_started = null;
+      this._timer_delay = null;
       this._interval = null;
     }
   };
@@ -163,7 +190,7 @@ class OccupancyDelay {
         remaining = this.slaveCount,
 
         /* callback for when all the switches values have been returend */
-        return_occupancy = function(occupied) {
+        return_occupancy = (occupied) => {
           if (occupied) {
             if (this._last_occupied_state === !!occupied) {
               this.stop();
@@ -176,13 +203,13 @@ class OccupancyDelay {
 
           // @todo: Set a custom property for how many switches we're waiting for
           this.log('checkOccupancy: ' + occupied);
-        }.bind(this),
+        },
 
         /*
           callback when we check a switches value. keeps track of the switches
           returned value and decides when to finish the function
         */
-        set_value = function(value) {
+        set_value = (value) => {
           remaining -= 1;
           if (value) {
             occupied += 1;
@@ -191,7 +218,7 @@ class OccupancyDelay {
           if (!remaining) {
             return_occupancy(occupied);
           }
-        }.bind(this);
+        };
 
 
     /* look at all the slave switches "on" characteristic and return to callback */
