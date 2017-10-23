@@ -21,7 +21,7 @@ module.exports = function(homebridge) {
       unit: Characteristic.Units.SECONDS,
       maxValue: 3600,
       minValue: 0,
-      minStep: 5,
+      minStep: 1,
       perms: [Characteristic.Perms.READ, Characteristic.Perms.NOTIFY]
     });
     this.value = this.getDefaultValue();
@@ -40,7 +40,7 @@ module.exports = function(homebridge) {
       unit: Characteristic.Units.SECONDS,
       maxValue: 3600,
       minValue: 0,
-      minStep: 30,
+      minStep: 1,
       perms: [Characteristic.Perms.READ, Characteristic.Perms.WRITE, Characteristic.Perms.NOTIFY]
     });
     this.value = this.getDefaultValue();
@@ -242,7 +242,7 @@ class OccupancyDelay {
   getServices() {
     var informationService = new Service.AccessoryInformation()
         .setCharacteristic(Characteristic.Manufacturer, 'github.com/archanglmr')
-        .setCharacteristic(Characteristic.Model, '1.0.0')
+        .setCharacteristic(Characteristic.Model, '1.0.1')
         .setCharacteristic(Characteristic.SerialNumber, '20171019');
 
 
