@@ -242,7 +242,7 @@ class OccupancyDelay {
   getServices() {
     var informationService = new Service.AccessoryInformation()
         .setCharacteristic(Characteristic.Manufacturer, 'github.com/archanglmr')
-        .setCharacteristic(Characteristic.Model, '0.2')
+        .setCharacteristic(Characteristic.Model, '1.0.0')
         .setCharacteristic(Characteristic.SerialNumber, '20171019');
 
 
