@@ -13,12 +13,17 @@
           "accessory": "OccupancyDelay",
           "name": "OccupancyDelay",
           "delay": 5,
-          "slaveCount": 1
+          "slaveCount": 1,
+          "protected": false
         }   
     ]
 ```
 
-Note, "delay" is in seconds.
+Note: "delay" is in seconds. If "protected" is set to true, the slave switches will be
+created using a custom boolean characteristic that can't be controlled through Siri
+(or the current Home app), but can be controlled through third party apps such as Eve:
+they can thus be protected from being controlled accidentally through a misunderstood Siri
+command.
 
 ## What problem will this solve?
 
