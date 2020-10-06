@@ -1,11 +1,12 @@
 "use strict";
 
 var inherits = require('util').inherits;
-var Service, Characteristic;
+var Service, Characteristic, HomebridgeAPI;
 
 module.exports = function(homebridge) {
   Service = homebridge.hap.Service;
   Characteristic = homebridge.hap.Characteristic;
+  HomebridgeAPI = homebridge;
 
 
 
@@ -85,6 +86,7 @@ class OccupancyDelay {
     this.name = config.name || "OccupancyDelay";
     this.slaveCount = Math.max(1, (config.slaveCount || 1));
     this.delay = Math.min(3600, Math.max(0, parseInt(config.delay, 10) || 0));
+    this.stateful = config.stateful;
 
 
     this._timer = null;
@@ -108,6 +110,9 @@ class OccupancyDelay {
     this.occupancyService.setCharacteristic(Characteristic.TimeRemaining, 0);
 
 
+    this.cacheDirectory = HomebridgeAPI.user.persistPath();
+    this.storage = require('node-persist');
+    this.storage.initSync({dir:this.cacheDirectory, forgiveParseErrors: true});
 
 
     /* Make the slave Switches */
@@ -230,6 +235,7 @@ class OccupancyDelay {
               set_value(value);
             }
           });
+      this.switchServices[i].setCharacteristic(Characteristic.On, true);
     }
   }
 
@@ -242,8 +248,8 @@ class OccupancyDelay {
   getServices() {
     var informationService = new Service.AccessoryInformation()
         .setCharacteristic(Characteristic.Manufacturer, 'github.com/archanglmr')
-        .setCharacteristic(Characteristic.Model, '1.0.1')
-        .setCharacteristic(Characteristic.SerialNumber, '20171019');
+        .setCharacteristic(Characteristic.Model, '1.0.2')
+        .setCharacteristic(Characteristic.SerialNumber, '20201006');
 
 
     return [this.occupancyService, informationService, ...this.switchServices]
@@ -269,7 +275,17 @@ class OccupancyDelay {
 
     this.log('Create Switch: ' + displayName);
     sw = new Service.Switch(displayName, name);
-    sw.setCharacteristic(Characteristic.On, false);
+
+    if (this.stateful) {
+ 	  var cachedState = this.storage.getItemSync(this.name);
+ 	  if((cachedState === undefined) || (cachedState === false)) {
+ 		sw.setCharacteristic(Characteristic.On, false);
+ 	  } else {
+ 		sw.setCharacteristic(Characteristic.On, true);
+ 	  }
+ 	} else {
+      sw.setCharacteristic(Characteristic.On, false);
+    }
     sw.getCharacteristic(Characteristic.On).on('change', this.checkOccupancy.bind(this));
 
     return sw;
