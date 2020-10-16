@@ -7,10 +7,6 @@ module.exports = function(homebridge) {
   Service = homebridge.hap.Service;
   Characteristic = homebridge.hap.Characteristic;
 
-
-
-
-
   /**
    * Characteristic "Time Remaining"
    */
@@ -22,13 +18,12 @@ module.exports = function(homebridge) {
       maxValue: 3600,
       minValue: 0,
       minStep: 1,
-      perms: [Characteristic.Perms.READ, Characteristic.Perms.NOTIFY]
+      perms: [Characteristic.Perms.READ, Characteristic.Perms.WRITE, Characteristic.Perms.NOTIFY]
     });
     this.value = this.getDefaultValue();
   };
   inherits(Characteristic.TimeRemaining, Characteristic);
   Characteristic.TimeRemaining.UUID = '1000006D-0000-1000-8000-0026BB765291';
-
 
   /**
    * Characteristic "Timeout Delay"
@@ -47,8 +42,6 @@ module.exports = function(homebridge) {
   };
   inherits(Characteristic.TimeoutDelay, Characteristic);
   Characteristic.TimeoutDelay.UUID = '1100006D-0000-1000-8000-0026BB765291';
-
-
 
   homebridge.registerAccessory("homebridge-occupancy-delay", "OccupancyDelay", OccupancyDelay);
 };
@@ -106,8 +99,12 @@ class OccupancyDelay {
 
     this.occupancyService.addCharacteristic(Characteristic.TimeRemaining);
     this.occupancyService.setCharacteristic(Characteristic.TimeRemaining, 0);
-
-
+    this.occupancyService.getCharacteristic(Characteristic.TimeRemaining).on('change', (event) => {
+      if (event.newValue === 0 && event.oldValue > 0) {
+          this.log('Cancel timer and set occupancy to "NotDetected"');
+          this.setOccupancyNotDetected();
+      }
+    });
 
 
     /* Make the slave Switches */
@@ -275,4 +272,3 @@ class OccupancyDelay {
     return sw;
   }
 }
-
