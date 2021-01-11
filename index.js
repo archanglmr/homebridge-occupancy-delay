@@ -1,60 +1,101 @@
 "use strict";
 
-var inherits = require('util').inherits;
+var inherits = require("util").inherits;
 var Service, Characteristic, HomebridgeAPI;
 
-module.exports = function(homebridge) {
+module.exports = function (homebridge) {
   Service = homebridge.hap.Service;
   Characteristic = homebridge.hap.Characteristic;
   HomebridgeAPI = homebridge;
 
-
-
-
-
   /**
    * Characteristic "Time Remaining"
    */
-  Characteristic.TimeRemaining = function() {
-    Characteristic.call(this, 'Time Remaining', '1000006D-0000-1000-8000-0026BB765291');
+  Characteristic.TimeRemaining = function () {
+    Characteristic.call(
+      this,
+      "Time Remaining",
+      "1000006D-0000-1000-8000-0026BB765291"
+    );
     this.setProps({
       format: Characteristic.Formats.UINT64,
       unit: Characteristic.Units.SECONDS,
       maxValue: 3600,
       minValue: 0,
       minStep: 1,
-      perms: [Characteristic.Perms.READ, Characteristic.Perms.NOTIFY]
+      perms: [
+        Characteristic.Perms.READ,
+        Characteristic.Perms.WRITE,
+        Characteristic.Perms.NOTIFY,
+      ],
     });
     this.value = this.getDefaultValue();
   };
   inherits(Characteristic.TimeRemaining, Characteristic);
-  Characteristic.TimeRemaining.UUID = '1000006D-0000-1000-8000-0026BB765291';
-
+  Characteristic.TimeRemaining.UUID = "1000006D-0000-1000-8000-0026BB765291";
 
   /**
    * Characteristic "Timeout Delay"
    */
-  Characteristic.TimeoutDelay = function() {
-    Characteristic.call(this, 'Timeout Delay', '1100006D-0000-1000-8000-0026BB765291');
+  Characteristic.TimeoutDelay = function () {
+    Characteristic.call(
+      this,
+      "Timeout Delay",
+      "1100006D-0000-1000-8000-0026BB765291"
+    );
     this.setProps({
       format: Characteristic.Formats.UINT64,
       unit: Characteristic.Units.SECONDS,
       maxValue: 3600,
       minValue: 0,
       minStep: 1,
-      perms: [Characteristic.Perms.READ, Characteristic.Perms.WRITE, Characteristic.Perms.NOTIFY]
+      perms: [
+        Characteristic.Perms.READ,
+        Characteristic.Perms.WRITE,
+        Characteristic.Perms.NOTIFY,
+      ],
     });
     this.value = this.getDefaultValue();
   };
   inherits(Characteristic.TimeoutDelay, Characteristic);
-  Characteristic.TimeoutDelay.UUID = '1100006D-0000-1000-8000-0026BB765291';
+  Characteristic.TimeoutDelay.UUID = "1100006D-0000-1000-8000-0026BB765291";
 
+  /**
+   * Characteristic "Enabled", Bool attribute
+   */
+  Characteristic.Enabled = function () {
+    Characteristic.call(this, "Enabled", Characteristic.Enabled.UUID);
 
+    this.setProps({
+      format: Characteristic.Formats.BOOL,
+      perms: [
+        Characteristic.Perms.READ,
+        Characteristic.Perms.NOTIFY,
+        Characteristic.Perms.WRITE,
+      ],
+    });
+  };
+  inherits(Characteristic.Enabled, Characteristic);
+  Characteristic.Enabled.UUID = "79c5cb42-4554-11ea-b071-4bf76b071f47";
 
-  homebridge.registerAccessory("homebridge-occupancy-delay", "OccupancyDelay", OccupancyDelay);
+  /**
+   * Service CustomSwitch, like switch but with an Enabled Characteristic
+   * so that can't accidentally be controlled through Siri, for instance
+   */
+  Service.CustomSwitch = function (displayName, subtype) {
+    Service.call(this, displayName, Service.CustomSwitch.UUID, subtype);
+    this.addCharacteristic(Characteristic.Enabled);
+  };
+  inherits(Service.CustomSwitch, Service);
+  Service.CustomSwitch.UUID = "0ad4aebe-4555-11ea-bf4b-f30c92b99e11";
+
+  // Register
+  homebridge.registerAccessory(
+    "homebridge-occupancy-delay",
+    "OccupancyDelay",
+    OccupancyDelay
+  );
 };
-
-
 
 /**
  * This accessory publishes an Occupancy Sensor as well as 1 or more slave
@@ -84,10 +125,10 @@ class OccupancyDelay {
   constructor(log, config) {
     this.log = log;
     this.name = config.name || "OccupancyDelay";
-    this.slaveCount = Math.max(1, (config.slaveCount || 1));
+    this.slaveCount = Math.max(1, config.slaveCount || 1);
     this.delay = Math.min(3600, Math.max(0, parseInt(config.delay, 10) || 0));
     this.stateful = config.stateful;
-
+    this.protect = !!config.protected;
 
     this._timer = null;
     this._timer_started = null;
@@ -100,27 +141,42 @@ class OccupancyDelay {
     this.occupancyService = new Service.OccupancySensor(this.name);
 
     this.occupancyService.addCharacteristic(Characteristic.TimeoutDelay);
-    this.occupancyService.setCharacteristic(Characteristic.TimeoutDelay, this.delay);
-    this.occupancyService.getCharacteristic(Characteristic.TimeoutDelay).on('change', (event) => {
-      this.log('Setting delay to:', event.newValue);
-      this.delay = event.newValue;
-    });
+    this.occupancyService.setCharacteristic(
+      Characteristic.TimeoutDelay,
+      this.delay
+    );
+    this.occupancyService
+      .getCharacteristic(Characteristic.TimeoutDelay)
+      .on("change", (event) => {
+        this.log("Setting delay to:", event.newValue);
+        this.delay = event.newValue;
+      });
 
     this.occupancyService.addCharacteristic(Characteristic.TimeRemaining);
     this.occupancyService.setCharacteristic(Characteristic.TimeRemaining, 0);
 
+    this.occupancyService
+      .getCharacteristic(Characteristic.TimeRemaining)
+      .on("change", (event) => {
+        if (event.newValue === 0 && event.oldValue > 0) {
+          this.log('Cancel timer and set occupancy to "NotDetected"');
+          this.setOccupancyNotDetected();
+        }
+      });
 
     this.cacheDirectory = HomebridgeAPI.user.persistPath();
-    this.storage = require('node-persist');
-    this.storage.initSync({dir:this.cacheDirectory, forgiveParseErrors: true});
-
+    this.storage = require("node-persist");
+    this.storage.initSync({
+      dir: this.cacheDirectory,
+      forgiveParseErrors: true,
+    });
 
     /* Make the slave Switches */
     if (1 === this.slaveCount) {
-      this.log('Making a single slave switch');
+      this.log("Making a single slave switch");
       this.switchServices.push(this._createSwitch());
     } else {
-      this.log('Making ' + this.slaveCount + ' salve switches');
+      this.log("Making " + this.slaveCount + " salve switches");
       for (let i = 0, c = this.slaveCount; i < c; i += 1) {
         this.switchServices.push(this._createSwitch(i + 1));
       }
@@ -132,17 +188,23 @@ class OccupancyDelay {
    */
   start() {
     this.stop();
-    this._timer_started = (new Date()).getTime();
-    this.log('Timer started:', this.delay);
+    this._timer_started = new Date().getTime();
+    this.log("Timer started:", this.delay);
     if (this.delay) {
-      this._timer = setTimeout(this.setOccupancyNotDetected.bind(this), (this.delay * 1000));
+      this._timer = setTimeout(
+        this.setOccupancyNotDetected.bind(this),
+        this.delay * 1000
+      );
       this._timer_delay = this.delay;
       this._interval = setInterval(() => {
-        var elapsed = ((new Date()).getTime() - this._timer_started) / 1000,
-            newValue = Math.round(this._timer_delay - elapsed);
+        var elapsed = (new Date().getTime() - this._timer_started) / 1000,
+          newValue = Math.round(this._timer_delay - elapsed);
 
         if (newValue !== this._interval_last_value) {
-          this.occupancyService.setCharacteristic(Characteristic.TimeRemaining, newValue);
+          this.occupancyService.setCharacteristic(
+            Characteristic.TimeRemaining,
+            newValue
+          );
           this._interval_last_value = newValue;
         }
       }, 250);
@@ -150,14 +212,14 @@ class OccupancyDelay {
       /* occupancy no longer detected */
       this.setOccupancyNotDetected();
     }
-  };
+  }
 
   /**
-   * Stops teh countdown timer
+   * Stops the countdown timer
    */
   stop() {
     if (this._timer) {
-      this.log('Timer stopped');
+      this.log("Timer stopped");
       clearTimeout(this._timer);
       clearInterval(this._interval);
       this._timer = null;
@@ -165,21 +227,29 @@ class OccupancyDelay {
       this._timer_delay = null;
       this._interval = null;
     }
-  };
-
+  }
 
   setOccupancyDetected() {
     this._last_occupied_state = true;
-    this.occupancyService.setCharacteristic(Characteristic.OccupancyDetected, Characteristic.OccupancyDetected.OCCUPANCY_DETECTED);
+    this.occupancyService.setCharacteristic(
+      Characteristic.OccupancyDetected,
+      Characteristic.OccupancyDetected.OCCUPANCY_DETECTED
+    );
     if (this.delay) {
-      this.occupancyService.setCharacteristic(Characteristic.TimeRemaining, this.delay);
+      this.occupancyService.setCharacteristic(
+        Characteristic.TimeRemaining,
+        this.delay
+      );
     }
   }
 
   setOccupancyNotDetected() {
     this._last_occupied_state = false;
     this.stop();
-    this.occupancyService.setCharacteristic(Characteristic.OccupancyDetected, Characteristic.OccupancyDetected.OCCUPANCY_NOT_DETECTED);
+    this.occupancyService.setCharacteristic(
+      Characteristic.OccupancyDetected,
+      Characteristic.OccupancyDetected.OCCUPANCY_NOT_DETECTED
+    );
     if (this.delay) {
       this.occupancyService.setCharacteristic(Characteristic.TimeRemaining, 0);
     }
@@ -192,49 +262,49 @@ class OccupancyDelay {
    */
   checkOccupancy() {
     var occupied = 0,
-        remaining = this.slaveCount,
-
-        /* callback for when all the switches values have been returend */
-        return_occupancy = (occupied) => {
-          if (occupied) {
-            if (this._last_occupied_state === !!occupied) {
-              this.stop();
-            } else {
-              this.setOccupancyDetected();
-            }
-          } else if (null === this._timer) {
-            this.start();
+      remaining = this.slaveCount,
+      /* callback for when all the switches values have been returend */
+      return_occupancy = (occupied) => {
+        if (occupied) {
+          if (this._last_occupied_state === !!occupied) {
+            this.stop();
+          } else {
+            this.setOccupancyDetected();
           }
+        } else if (null === this._timer) {
+          this.start();
+        }
 
-          // @todo: Set a custom property for how many switches we're waiting for
-          this.log('checkOccupancy: ' + occupied);
-        },
-
-        /*
+        // @todo: Set a custom property for how many switches we're waiting for
+        this.log("checkOccupancy: " + occupied);
+      },
+      /*
           callback when we check a switches value. keeps track of the switches
           returned value and decides when to finish the function
         */
-        set_value = (value) => {
-          remaining -= 1;
-          if (value) {
-            occupied += 1;
-          }
+      set_value = (value) => {
+        remaining -= 1;
+        if (value) {
+          occupied += 1;
+        }
 
-          if (!remaining) {
-            return_occupancy(occupied);
-          }
-        };
-
+        if (!remaining) {
+          return_occupancy(occupied);
+        }
+      };
 
     /* look at all the slave switches "on" characteristic and return to callback */
+    const onCharacteristic = this.protect
+      ? Characteristic.Enabled
+      : Characteristic.On;
     for (let i = 0; i < this.slaveCount; i += 1) {
       this.switchServices[i]
-          .getCharacteristic(Characteristic.On)
-          .getValue(function(err, value) {
-            if (!err) {
-              set_value(value);
-            }
-          });
+        .getCharacteristic(onCharacteristic)
+        .getValue(function (err, value) {
+          if (!err) {
+            set_value(value);
+          }
+        });
       this.switchServices[i].setCharacteristic(Characteristic.On, true);
     }
   }
@@ -247,12 +317,11 @@ class OccupancyDelay {
    */
   getServices() {
     var informationService = new Service.AccessoryInformation()
-        .setCharacteristic(Characteristic.Manufacturer, 'github.com/archanglmr')
-        .setCharacteristic(Characteristic.Model, '1.0.2')
-        .setCharacteristic(Characteristic.SerialNumber, '20201006');
+      .setCharacteristic(Characteristic.Manufacturer, "github.com/archanglmr")
+      .setCharacteristic(Characteristic.Model, "1.0.2")
+      .setCharacteristic(Characteristic.SerialNumber, "20201006");
 
-
-    return [this.occupancyService, informationService, ...this.switchServices]
+    return [this.occupancyService, informationService, ...this.switchServices];
   }
 
   /**
@@ -264,31 +333,44 @@ class OccupancyDelay {
    * @private
    */
   _createSwitch(name) {
-    var displayName = (name || '').toString(),
-        sw;
+    var displayName = (name || "").toString(),
+      sw;
 
     if (displayName.length) {
-      displayName = this.name + ' ' + displayName;
+      displayName = this.name + " " + displayName;
     } else {
       displayName = this.name;
     }
 
-    this.log('Create Switch: ' + displayName);
+    this.log("Create Switch: " + displayName);
     sw = new Service.Switch(displayName, name);
 
+    let statefulValue = false;
     if (this.stateful) {
- 	  var cachedState = this.storage.getItemSync(this.name);
- 	  if((cachedState === undefined) || (cachedState === false)) {
- 		sw.setCharacteristic(Characteristic.On, false);
- 	  } else {
- 		sw.setCharacteristic(Characteristic.On, true);
- 	  }
- 	} else {
-      sw.setCharacteristic(Characteristic.On, false);
+      const cachedState = this.storage.getItemSync(this.name);
+      if (cachedState === undefined || cachedState === false) {
+        statefulValue = false;
+      } else {
+        statefulValue = true;
+      }
     }
-    sw.getCharacteristic(Characteristic.On).on('change', this.checkOccupancy.bind(this));
+
+    if (this.protect) {
+      sw = new Service.CustomSwitch(displayName, name);
+      sw.setCharacteristic(Characteristic.Enabled, statefulValue);
+      sw.getCharacteristic(Characteristic.Enabled).on(
+        "change",
+        this.checkOccupancy.bind(this)
+      );
+    } else {
+      sw = new Service.Switch(displayName, name);
+      sw.setCharacteristic(Characteristic.On, statefulValue);
+      sw.getCharacteristic(Characteristic.On).on(
+        "change",
+        this.checkOccupancy.bind(this)
+      );
+    }
 
     return sw;
   }
 }
-
