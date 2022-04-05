@@ -1,0 +1,40 @@
+{
+    "pluginAlias": "OccupancyDelay",
+    "pluginType": "accessory",
+    "singular": false,
+    "headerDisplay": "Occupancy sensors",
+    "schema": {
+        "type": "object",
+        "properties": {
+            "name": {
+                "title": "Name",
+                "type": "string",
+                "default": "Occupancy Sensor",
+                "required": true
+            },
+            "slaveCount": {
+                "title": "Slave count",
+                "type": "integer",
+                "required": false,
+                "description": "Number of slave switches"
+            },
+            "delay": {
+                "title": "Delay",
+                "type": "integer",
+                "required": false,
+                "description": "Time in seconds before changing to unoccupied"
+            }
+       }
+    },
+    "layout": [
+        {
+            "key": "name"
+        },
+        {
+            "key": "slaveCount"
+        },
+        {
+            "key": "delay"
+        }
+    ]
+}
